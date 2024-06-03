@@ -1,37 +1,3 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <arpa/inet.h>
-
-void clear_screen() {
-    #ifdef _WIN32
-        system("cls");
-    #else
-        system("clear");
-    #endif
-}
-
-void mostrar_menu_principal() {
-    clear_screen();
-    printf("Bienvenido a Clinica de Redes.\n");
-    printf("Seleccione el área correspondiente a consultar:\n");
-    printf("1. Oncología.\n");
-    printf("2. Pediatría.\n");
-    printf("3. Oftalmología.\n");
-    printf("4. Salir.\n");
-}
-
-void mostrar_submenu(char *categoria) {
-    clear_screen();
-    printf("Seleccione una opción para %s:\n", categoria);
-    printf("1. Reservar hora.\n");
-    printf("2. Consultar reserva.\n");
-    printf("3. Cancelar hora.\n");
-    printf("4. Consultar horario.\n");
-    printf("5. Retroceder.\n");
-}
-
 void manejar_reserva(int client_socket) {
     char buffer[1024];
     int hora_index;
@@ -70,57 +36,6 @@ void manejar_reserva(int client_socket) {
     printf("%s", buffer);
 }
 
-void manejar_consulta(int client_socket) {
-    char buffer[1024];
-
-    printf("Ingrese ID de consulta: ");
-    bzero(buffer, 1024);
-    scanf(" %[^\n]s", buffer);
-    write(client_socket, buffer, strlen(buffer));
-
-    bzero(buffer, 1024);
-    read(client_socket, buffer, 1024);
-    printf("%s", buffer);
-}
-
-void manejar_cancelacion(int client_socket) {
-    char buffer[1024];
-
-    printf("Ingrese ID de consulta: ");
-    bzero(buffer, 1024);
-    scanf(" %[^\n]s", buffer);
-    write(client_socket, buffer, strlen(buffer));
-
-    bzero(buffer, 1024);
-    read(client_socket, buffer, 1024);
-    printf("%s", buffer);
-}
-
-void consultar_horario(int client_socket) {
-    char buffer[1024];
-    int mes, dia;
-
-    printf("Ingrese mes (1-12): ");
-    scanf("%d", &mes);
-    sprintf(buffer, "%d", mes);
-    write(client_socket, buffer, strlen(buffer));
-
-    printf("Ingrese día: ");
-    scanf("%d", &dia);
-    sprintf(buffer, "%d", dia);
-    write(client_socket, buffer, strlen(buffer));
-
-    bzero(buffer, 1024);
-    read(client_socket, buffer, 1024);
-    printf("%s", buffer);
-
-    while (read(client_socket, buffer, 1024) > 0) {
-        printf("%s", buffer);
-        if (strchr(buffer, '\n') != NULL) break;
-        bzero(buffer, 1024);
-    }
-}
-
 int main() {
     int client_socket;
     struct sockaddr_in server_addr;
@@ -156,7 +71,9 @@ int main() {
         }
 
         scanf("%d", &opcion);
-        write(client_socket, &opcion, sizeof(opcion));
+        char opcion_str[10];
+        sprintf(opcion_str, "%d", opcion);
+        write(client_socket, opcion_str, strlen(opcion_str));  // Cambiado para enviar cadena
 
         switch (opcion) {
             case 1:
