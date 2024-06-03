@@ -1,206 +1,208 @@
-/* SERVIDOR */
-/***********/
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
+#include <stdlib.h>
 #include <unistd.h>
-#include <signal.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
 #include <arpa/inet.h>
-
-#define MAX_CONN 100 // Nº máximo de conexiones en espera
-#define MAX_TAM_MENSAJE 512 // Número de caracteres máximo del mensaje
-#define MAX_TURNOS 100 // Número máximo de turnos
-
-int descriptor_socket_servidor, descriptor_socket_cliente;
+#include <stdbool.h>
 
 typedef struct {
-    int id;
-    char nombre_paciente[100];
-    char fecha[20];
-    char hora[10];
-    int activo;
-} Turno;
+    char nombre[100];
+    char fecha[11];  // formato dd-mm-aaaa
+    char hora[6];    // formato hh:mm
+    char categoria[50];
+    int consulta_id;
+} Reserva;
 
-Turno turnos[MAX_TURNOS];
-int contador_turnos = 0;
+typedef struct {
+    char hora[6];
+    bool disponible;
+} Horario;
 
-/**********************************************************/
-/* función catch que captura una interrupción             */
-/**********************************************************/
-void catch(int sig) {
-    printf("***Señal: %d atrapada!\n", sig);
-    printf("***Cerrando servicio ...\n");
-    close(descriptor_socket_cliente);
-    close(descriptor_socket_servidor);
-    printf("***Servicio cerrado.\n");
-    exit(EXIT_SUCCESS);
-}
+Horario horarios[] = {
+    {"08:00", true}, {"08:30", true}, {"09:00", true}, {"09:30", true}, {"10:00", true},
+    {"10:30", true}, {"11:00", true}, {"11:30", true}, {"12:00", true}, {"12:30", true},
+    {"13:00", true}, {"13:30", true}, {"14:00", true}, {"14:30", true}, {"15:00", true},
+    {"15:30", true}, {"16:00", true}, {"16:30", true}, {"17:00", true}, {"17:30", true},
+    {"18:00", true}, {"18:30", true}, {"19:00", true}, {"19:30", true}, {"20:00", true}
+};
 
-/**********************************************************/
-/* función para inicializar los turnos                    */
-/**********************************************************/
-void inicializarTurnos() {
-    for (int i = 0; i < MAX_TURNOS; i++) {
-        turnos[i].id = i;
-        turnos[i].activo = 0;
+Reserva reservas[100];
+int reserva_count = 0;
+int consulta_id_counter = 1;
+
+void mostrar_horarios(int client_socket) {
+    char buffer[1024];
+    strcpy(buffer, "Horario de la categoria:\nHoras disponibles:\n");
+    write(client_socket, buffer, strlen(buffer));
+    
+    for (int i = 0; i < sizeof(horarios) / sizeof(horarios[0]); i++) {
+        if (horarios[i].disponible) {
+            sprintf(buffer, "%d. %s - %02d:%02d\n", i+1, horarios[i].hora, 
+                    atoi(horarios[i].hora), (atoi(horarios[i].hora) + 25) % 60);
+            write(client_socket, buffer, strlen(buffer));
+        }
     }
 }
 
-/**********************************************************/
-/* función para reservar un turno                         */
-/**********************************************************/
-void reservarTurno(char *mensaje_entrada, char *respuesta) {
-    char nombre_paciente[100], fecha[20], hora[10];
-    sscanf(mensaje_entrada, "%s %s %s reservar", nombre_paciente, fecha, hora);
+void agregar_reserva(Reserva r, int hora_index) {
+    r.consulta_id = consulta_id_counter++;
+    reservas[reserva_count++] = r;
+    horarios[hora_index].disponible = false;
+}
 
-    for (int i = 0; i < MAX_TURNOS; i++) {
-        if (!turnos[i].activo) {
-            turnos[i].activo = 1;
-            strcpy(turnos[i].nombre_paciente, nombre_paciente);
-            strcpy(turnos[i].fecha, fecha);
-            strcpy(turnos[i].hora, hora);
-            sprintf(respuesta, "Turno reservado con éxito. ID del turno: %d", turnos[i].id);
+Reserva* consultar_reserva(int consulta_id) {
+    for (int i = 0; i < reserva_count; i++) {
+        if (reservas[i].consulta_id == consulta_id) {
+            return &reservas[i];
+        }
+    }
+    return NULL;
+}
+
+void cancelar_reserva(int consulta_id) {
+    for (int i = 0; i < reserva_count; i++) {
+        if (reservas[i].consulta_id == consulta_id) {
+            for (int j = 0; j < 26; j++) {
+                if (strcmp(horarios[j].hora, reservas[i].hora) == 0) {
+                    horarios[j].disponible = true;
+                    break;
+                }
+            }
+            reservas[i] = reservas[--reserva_count];
             return;
         }
     }
-
-    strcpy(respuesta, "No hay turnos disponibles.");
 }
 
-/**********************************************************/
-/* función para cancelar un turno                         */
-/**********************************************************/
-void cancelarTurno(char *mensaje_entrada, char *respuesta) {
-    int id_turno;
-    sscanf(mensaje_entrada, "%d cancelar", &id_turno);
-
-    if (id_turno >= 0 && id_turno < MAX_TURNOS && turnos[id_turno].activo) {
-        turnos[id_turno].activo = 0;
-        sprintf(respuesta, "Turno con ID %d cancelado con éxito.", id_turno);
-    } else {
-        strcpy(respuesta, "Turno no encontrado o ya cancelado.");
-    }
-}
-
-/**********************************************************/
-/* función para consultar turnos                          */
-/**********************************************************/
-void consultarTurnos(char *mensaje_entrada, char *respuesta) {
-    char nombre_paciente[100];
-    sscanf(mensaje_entrada, "%s consultar", nombre_paciente);
-
-    strcpy(respuesta, "Turnos reservados:\n");
-    for (int i = 0; i < MAX_TURNOS; i++) {
-        if (turnos[i].activo && strcmp(turnos[i].nombre_paciente, nombre_paciente) == 0) {
-            char turno_info[200];
-            sprintf(turno_info, "ID: %d, Fecha: %s, Hora: %s\n", turnos[i].id, turnos[i].fecha, turnos[i].hora);
-            strcat(respuesta, turno_info);
+void mostrar_horarios_disponibles(int client_socket, int dia, int mes) {
+    char buffer[1024];
+    sprintf(buffer, "Horas disponibles para el dia %d/%d:\n", dia, mes);
+    write(client_socket, buffer, strlen(buffer));
+    
+    for (int i = 0; i < 26; i++) {
+        if (horarios[i].disponible) {
+            sprintf(buffer, "%d. %s - %02d:%02d\n", i+1, horarios[i].hora, 
+                    atoi(horarios[i].hora), (atoi(horarios[i].hora) + 25) % 60);
+            write(client_socket, buffer, strlen(buffer));
         }
     }
 }
 
-/**********************************************************/
-/* función MAIN                                           */
-/* Orden Parametros: Puerto                               */
-/**********************************************************/
-int main(int argc, char *argv[]) {
-    socklen_t destino_tam;
-    struct sockaddr_in socket_servidor, socket_cliente;
-    char mensaje_entrada[MAX_TAM_MENSAJE], mensaje_salida[MAX_TAM_MENSAJE];
+void manejar_cliente(int client_socket) {
+    char buffer[1024];
+    int opcion, consulta_id, hora_index;
+    Reserva nueva_reserva;
 
-    if (argc != 2) {
-        printf("\n\nEl número de parámetros es incorrecto\n");
-        printf("Use: %s <puerto>\n\n", argv[0]);
-        exit(EXIT_FAILURE);
-    }
-
-    // Inicializar turnos
-    inicializarTurnos();
-
-    // Creamos el socket del servidor
-    descriptor_socket_servidor = socket(AF_INET, SOCK_STREAM, 0);
-    if (descriptor_socket_servidor == -1) {
-        printf("ERROR: El socket del servidor no se ha creado correctamente!\n");
-        exit(EXIT_FAILURE);
-    }
-
-    // Se prepara la dirección de la máquina servidora
-    socket_servidor.sin_family = AF_INET;
-    socket_servidor.sin_port = htons(atoi(argv[1]));
-    socket_servidor.sin_addr.s_addr = htonl(INADDR_ANY);
-
-    // Asigna una dirección local al socket
-    if (bind(descriptor_socket_servidor, (struct sockaddr*)&socket_servidor, sizeof(socket_servidor)) == -1) {
-        printf("ERROR al configurar el socket del servidor\n");
-        close(descriptor_socket_servidor);
-        exit(EXIT_FAILURE);
-    }
-
-    // Espera al establecimiento de alguna conexión de múltiples usuarios
-    if (listen(descriptor_socket_servidor, MAX_CONN) == -1) {
-        printf("ERROR al establecer la escucha de N conexiones en el servidor\n");
-        close(descriptor_socket_servidor);
-        exit(EXIT_FAILURE);
-    }
-
-    signal(SIGINT, &catch);
     while (1) {
-        printf("\n***Servidor ACTIVO escuchando en el puerto: %s ...\n", argv[1]);
-        // Establece una conexión
-        destino_tam = sizeof(socket_cliente);
-        descriptor_socket_cliente = accept(descriptor_socket_servidor, (struct sockaddr*)&socket_cliente, &destino_tam);
-        if (descriptor_socket_cliente == -1) {
-            printf("ERROR al establecer la conexión del servidor con el cliente\n");
-            close(descriptor_socket_servidor);
-            exit(EXIT_FAILURE);
+        bzero(buffer, 1024);
+        read(client_socket, buffer, 1024);
+        opcion = atoi(buffer);
+
+        switch (opcion) {
+            case 1: // Reservar hora
+                mostrar_horarios(client_socket);
+                
+                bzero(buffer, 1024);
+                read(client_socket, buffer, 1024);
+                hora_index = atoi(buffer) - 1;
+
+                write(client_socket, "Ingrese nombre: ", strlen("Ingrese nombre: "));
+                bzero(buffer, 1024);
+                read(client_socket, buffer, 1024);
+                strcpy(nueva_reserva.nombre, buffer);
+
+                write(client_socket, "Ingrese fecha (dd-mm-aaaa): ", strlen("Ingrese fecha (dd-mm-aaaa): "));
+                bzero(buffer, 1024);
+                read(client_socket, buffer, 1024);
+                strcpy(nueva_reserva.fecha, buffer);
+
+                strcpy(nueva_reserva.hora, horarios[hora_index].hora);
+                write(client_socket, "Ingrese categoria: ", strlen("Ingrese categoria: "));
+                bzero(buffer, 1024);
+                read(client_socket, buffer, 1024);
+                strcpy(nueva_reserva.categoria, buffer);
+
+                agregar_reserva(nueva_reserva, hora_index);
+
+                sprintf(buffer, "Su hora ha sido reservada con éxito para:\nID: %d, Nombre: %s, Fecha: %s, Hora: %s, Categoria: %s\n",
+                        nueva_reserva.consulta_id, nueva_reserva.nombre, nueva_reserva.fecha, nueva_reserva.hora, nueva_reserva.categoria);
+                write(client_socket, buffer, strlen(buffer));
+                break;
+            case 2: // Consultar reserva
+                write(client_socket, "Ingrese ID de consulta: ", strlen("Ingrese ID de consulta: "));
+                bzero(buffer, 1024);
+                read(client_socket, buffer, 1024);
+                consulta_id = atoi(buffer);
+
+                Reserva* res = consultar_reserva(consulta_id);
+                if (res) {
+                    sprintf(buffer, "ID: %d, Nombre: %s, Fecha: %s, Hora: %s, Categoria: %s\n",
+                            res->consulta_id, res->nombre, res->fecha, res->hora, res->categoria);
+                } else {
+                    strcpy(buffer, "Reserva no encontrada.\n");
+                }
+                write(client_socket, buffer, strlen(buffer));
+                break;
+            case 3: // Cancelar reserva
+                write(client_socket, "Ingrese ID de consulta: ", strlen("Ingrese ID de consulta: "));
+                bzero(buffer, 1024);
+                read(client_socket, buffer, 1024);
+                consulta_id = atoi(buffer);
+
+                cancelar_reserva(consulta_id);
+                strcpy(buffer, "Reserva cancelada.\n");
+                write(client_socket, buffer, strlen(buffer));
+                break;
+            case 4: // Consultar horario
+                write(client_socket, "Ingrese mes (1-12): ", strlen("Ingrese mes (1-12): "));
+                bzero(buffer, 1024);
+                read(client_socket, buffer, 1024);
+                int mes = atoi(buffer);
+
+                write(client_socket, "Ingrese día: ", strlen("Ingrese día: "));
+                bzero(buffer, 1024);
+                read(client_socket, buffer, 1024);
+                int dia = atoi(buffer);
+
+                mostrar_horarios_disponibles(client_socket, dia, mes);
+                break;
+            case 5:
+                close(client_socket);
+                return;
+            default:
+                strcpy(buffer, "Opción no válida.\n");
+                write(client_socket, buffer, strlen(buffer));
         }
-        printf("***Servidor se conectó con el cliente: %d.\n", socket_cliente.sin_addr.s_addr);
-        do {
-            // Recibe el mensaje del cliente
-            if (recv(descriptor_socket_cliente, mensaje_entrada, sizeof(mensaje_entrada), 0) == -1) {
-                perror("Error en recv");
-                close(descriptor_socket_cliente);
-                close(descriptor_socket_servidor);
-                exit(EXIT_SUCCESS);
-            } else {
-                printf("<<Cliente envía >>: %s\n", mensaje_entrada);
-            }
-
-            // Procesar el mensaje del cliente
-            if (strstr(mensaje_entrada, "reservar")) {
-                reservarTurno(mensaje_entrada, mensaje_salida);
-            } else if (strstr(mensaje_entrada, "cancelar")) {
-                cancelarTurno(mensaje_entrada, mensaje_salida);
-            } else if (strstr(mensaje_entrada, "consultar")) {
-                consultarTurnos(mensaje_entrada, mensaje_salida);
-            } else if (strcmp(mensaje_entrada, "terminar();") == 0) {
-                strcpy(mensaje_salida, "Conexión terminada por el cliente.");
-            } else {
-                strcpy(mensaje_salida, "Comando no reconocido.");
-            }
-
-            // Envía el mensaje al cliente
-            if (send(descriptor_socket_cliente, mensaje_salida, strlen(mensaje_salida) + 1, 0) == -1) {
-                perror("Error en send");
-                close(descriptor_socket_cliente);
-                close(descriptor_socket_servidor);
-                exit(EXIT_SUCCESS);
-            } else {
-                printf("<<Servidor replica>>: %s\n", mensaje_salida);
-            }
-        } while (strcmp(mensaje_entrada, "terminar();") != 0);
-
-        // Cierra la conexión con el cliente actual
-        printf("***Cerrando conexión con cliente ...\n");
-        close(descriptor_socket_cliente);
-        printf("***Conexión cerrada.\n");
     }
-    // Cierra el servidor
-    printf("***Cerrando servicio ...\n");
-    close(descriptor_socket_servidor);
-    printf("***Servicio cerrado.\n");
-    exit(EXIT_SUCCESS);
+}
+
+int main() {
+    int server_socket, client_socket, addr_size;
+    struct sockaddr_in server_addr, client_addr;
+
+    server_socket = socket(AF_INET, SOCK_STREAM, 0);
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(8080);
+    server_addr.sin_addr.s_addr = INADDR_ANY;
+
+    bind(server_socket, (struct sockaddr*)&server_addr, sizeof(server_addr));
+    listen(server_socket, 5);
+
+    printf("Servidor escuchando en el puerto 8080...\n");
+
+    while (1) {
+        addr_size = sizeof(client_addr);
+        client_socket = accept(server_socket, (struct sockaddr*)&client_addr, &addr_size);
+        printf("Cliente conectado...\n");
+
+        if (fork() == 0) {
+            close(server_socket);
+            manejar_cliente(client_socket);
+            exit(0);
+        } else {
+            close(client_socket);
+        }
+    }
+
+    return 0;
 }

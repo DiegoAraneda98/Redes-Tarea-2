@@ -1,148 +1,182 @@
-/* CLIENTE */
-/**********/
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <signal.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
 #include <arpa/inet.h>
 
-#define MAX_TAM_MENSAJE 512 // Número de caracteres máximo del mensaje
-
-char mensaje[MAX_TAM_MENSAJE];
-
-/**********************************************************/
-/* función catch que captura una interrupción             */
-/**********************************************************/
-void catch(int sig)
-{
-	strcpy(mensaje,"terminar();");
+void clear_screen() {
+    #ifdef _WIN32
+        system("cls");
+    #else
+        system("clear");
+    #endif
 }
 
-/**********************************************************/
-/* función para mostrar el menú de opciones               */
-/**********************************************************/
-void mostrarMenu() {
-    printf("\nSeleccione una opción:\n");
-    printf("1. Reservar turno\n");
-    printf("2. Cancelar turno\n");
-    printf("3. Consultar turnos\n");
-    printf("4. Salir\n");
-    printf("Opción: ");
+void mostrar_menu_principal() {
+    clear_screen();
+    printf("Bienvenido a Clinica de Redes.\n");
+    printf("Seleccione el área correspondiente a consultar:\n");
+    printf("1. Oncología.\n");
+    printf("2. Pediatría.\n");
+    printf("3. Oftalmología.\n");
+    printf("4. Salir.\n");
 }
 
-/**********************************************************/
-/* función MAIN                                           */
-/* Orden Parametros: IP destino, puerto                   */
-/**********************************************************/
-int main(int argc, char *argv[]) {
-	int descriptor_socket_origen;
-	struct sockaddr_in socket_origen, socket_destino;
-	char respuesta[MAX_TAM_MENSAJE];
+void mostrar_submenu(char *categoria) {
+    clear_screen();
+    printf("Seleccione una opción para %s:\n", categoria);
+    printf("1. Reservar hora.\n");
+    printf("2. Consultar reserva.\n");
+    printf("3. Cancelar hora.\n");
+    printf("4. Consultar horario.\n");
+    printf("5. Retroceder.\n");
+}
 
- 	if (argc != 3) {
-        printf("\n\nEl número de parámetros es incorrecto\n");
-        printf("Use: %s <IP_servidor> <puerto>\n\n",argv[0]);
-        exit(EXIT_FAILURE);
+void manejar_reserva(int client_socket) {
+    char buffer[1024];
+    int hora_index;
+
+    bzero(buffer, 1024);
+    read(client_socket, buffer, 1024);
+    printf("%s", buffer);
+
+    while (read(client_socket, buffer, 1024) > 0) {
+        printf("%s", buffer);
+        if (strchr(buffer, '\n') != NULL) break;
+        bzero(buffer, 1024);
     }
 
-	// Creamos el socket del cliente
-	descriptor_socket_origen = socket(AF_INET, SOCK_STREAM, 0);
-	if (descriptor_socket_origen == -1) {
-        printf("ERROR: El socket del cliente no se ha creado correctamente!\n");
-        exit(EXIT_FAILURE);
+    scanf("%d", &hora_index);
+    sprintf(buffer, "%d", hora_index);
+    write(client_socket, buffer, strlen(buffer));
+
+    printf("Ingrese nombre: ");
+    bzero(buffer, 1024);
+    scanf(" %[^\n]s", buffer);
+    write(client_socket, buffer, strlen(buffer));
+
+    printf("Ingrese fecha (dd-mm-aaaa): ");
+    bzero(buffer, 1024);
+    scanf(" %[^\n]s", buffer);
+    write(client_socket, buffer, strlen(buffer));
+
+    printf("Ingrese categoria: ");
+    bzero(buffer, 1024);
+    scanf(" %[^\n]s", buffer);
+    write(client_socket, buffer, strlen(buffer));
+
+    bzero(buffer, 1024);
+    read(client_socket, buffer, 1024);
+    printf("%s", buffer);
+}
+
+void manejar_consulta(int client_socket) {
+    char buffer[1024];
+
+    printf("Ingrese ID de consulta: ");
+    bzero(buffer, 1024);
+    scanf(" %[^\n]s", buffer);
+    write(client_socket, buffer, strlen(buffer));
+
+    bzero(buffer, 1024);
+    read(client_socket, buffer, 1024);
+    printf("%s", buffer);
+}
+
+void manejar_cancelacion(int client_socket) {
+    char buffer[1024];
+
+    printf("Ingrese ID de consulta: ");
+    bzero(buffer, 1024);
+    scanf(" %[^\n]s", buffer);
+    write(client_socket, buffer, strlen(buffer));
+
+    bzero(buffer, 1024);
+    read(client_socket, buffer, 1024);
+    printf("%s", buffer);
+}
+
+void consultar_horario(int client_socket) {
+    char buffer[1024];
+    int mes, dia;
+
+    printf("Ingrese mes (1-12): ");
+    scanf("%d", &mes);
+    sprintf(buffer, "%d", mes);
+    write(client_socket, buffer, strlen(buffer));
+
+    printf("Ingrese día: ");
+    scanf("%d", &dia);
+    sprintf(buffer, "%d", dia);
+    write(client_socket, buffer, strlen(buffer));
+
+    bzero(buffer, 1024);
+    read(client_socket, buffer, 1024);
+    printf("%s", buffer);
+
+    while (read(client_socket, buffer, 1024) > 0) {
+        printf("%s", buffer);
+        if (strchr(buffer, '\n') != NULL) break;
+        bzero(buffer, 1024);
     }
+}
 
-    // Se prepara el socket de la máquina cliente
-    socket_origen.sin_family = AF_INET;
-	socket_origen.sin_port = htons(0); 								// Asigna un puerto disponible de la máquina
-	socket_origen.sin_addr.s_addr = htonl(INADDR_ANY); // Asigna una IP de la máquina
+int main() {
+    int client_socket;
+    struct sockaddr_in server_addr;
+    int opcion, categoria_opcion;
 
-	// Asigna una dirección local al socket
-	if (bind(descriptor_socket_origen, (struct sockaddr*)&socket_origen, sizeof(socket_origen)) == -1) {
-        printf("ERROR al configurar el socket del cliente\n");
-        close(descriptor_socket_origen);
-        exit(EXIT_FAILURE);
-    }
+    client_socket = socket(AF_INET, SOCK_STREAM, 0);
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(8080);
+    server_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
 
-    // Se prepara la configuración de socket de la máquina servidora
-	socket_destino.sin_family = AF_INET;
-	socket_destino.sin_addr.s_addr = inet_addr(argv[1]);
-	socket_destino.sin_port = htons(atoi(argv[2]));
+    connect(client_socket, (struct sockaddr*)&server_addr, sizeof(server_addr));
 
-	// Establece la conexión con la máquina remota
-    printf("*** Estableciendo conexión con servidor %s en puerto %s ....\n", argv[1], argv[2]);
-	if (connect(descriptor_socket_origen, (struct sockaddr*)&socket_destino, sizeof(socket_destino)) == -1) {
-        printf("ERROR en la solicitud de conexión del cliente al servidor\n");
-        close(descriptor_socket_origen);
-        exit(EXIT_FAILURE);
-    } else {
-        printf("*** Conexión establecida. \n");
-    }
+    while (1) {
+        mostrar_menu_principal();
+        scanf("%d", &categoria_opcion);
 
-    signal(SIGINT, &catch);
-
-    int opcion;
-    do {
-        mostrarMenu();
-        scanf("%d", &opcion);
-        getchar(); // Consumir el salto de línea después del número ingresado
-
-        switch(opcion) {
+        switch (categoria_opcion) {
             case 1:
-                printf("Ingrese los detalles de la reserva (formato: <nombre_paciente> <fecha> <hora>): ");
-                fgets(mensaje, MAX_TAM_MENSAJE, stdin);
-                strcat(mensaje, " reservar");
+                mostrar_submenu("Oncología");
                 break;
             case 2:
-                printf("Ingrese el ID del turno a cancelar: ");
-                fgets(mensaje, MAX_TAM_MENSAJE, stdin);
-                strcat(mensaje, " cancelar");
+                mostrar_submenu("Pediatría");
                 break;
             case 3:
-                printf("Ingrese el nombre del paciente para consultar los turnos: ");
-                fgets(mensaje, MAX_TAM_MENSAJE, stdin);
-                strcat(mensaje, " consultar");
+                mostrar_submenu("Oftalmología");
                 break;
             case 4:
-                strcpy(mensaje, "terminar();");
-                break;
+                close(client_socket);
+                exit(0);
             default:
-                printf("Opción no válida. Intente nuevamente.\n");
+                printf("Opción no válida.\n");
                 continue;
         }
 
-        // Envía el mensaje
-        if (send(descriptor_socket_origen, mensaje, strlen(mensaje), 0) == -1) {
-            printf("ERROR al enviar el mensaje del cliente al servidor\n");
-            close(descriptor_socket_origen);
-            exit(EXIT_FAILURE);
-        } else {
-            printf("*** Cliente envía: %s a: %s en puerto: %s \n", mensaje, argv[1], argv[2]);
+        scanf("%d", &opcion);
+        write(client_socket, &opcion, sizeof(opcion));
+
+        switch (opcion) {
+            case 1:
+                manejar_reserva(client_socket);
+                break;
+            case 2:
+                manejar_consulta(client_socket);
+                break;
+            case 3:
+                manejar_cancelacion(client_socket);
+                break;
+            case 4:
+                consultar_horario(client_socket);
+                break;
+            case 5:
+                continue;
+            default:
+                printf("Opción no válida.\n");
         }
+    }
 
-        // Recibe la respuesta
-        if (recv(descriptor_socket_origen, respuesta, sizeof(respuesta), 0) == -1) {
-            printf("ERROR al recibir el mensaje del servidor al cliente\n");
-            close(descriptor_socket_origen);
-            exit(EXIT_FAILURE);
-        } else {
-            printf("<<Servidor>>: %s\n", respuesta);
-        }
-
-        if (strcmp(mensaje, "terminar();") == 0) {
-            printf("*** Cliente terminó conexión con servidor.\n");
-            close(descriptor_socket_origen);
-            exit(EXIT_SUCCESS);
-        }
-
-    } while (1);
-
-    // Se cierra la conexión (socket)
-    printf("\nCliente termina.\n");
-	close(descriptor_socket_origen);
-    exit(EXIT_SUCCESS);
+    return 0;
 }
