@@ -1,3 +1,91 @@
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+#include <stdbool.h>
+
+typedef struct {
+    char nombre[100];
+    char fecha[11];  // formato dd-mm-aaaa
+    char hora[6];    // formato hh:mm
+    char categoria[50];
+    int consulta_id;
+} Reserva;
+
+typedef struct {
+    char hora[6];
+    bool disponible;
+} Horario;
+
+Horario horarios[] = {
+    {"08:00", true}, {"08:30", true}, {"09:00", true}, {"09:30", true}, {"10:00", true},
+    {"10:30", true}, {"11:00", true}, {"11:30", true}, {"12:00", true}, {"12:30", true},
+    {"13:00", true}, {"13:30", true}, {"14:00", true}, {"14:30", true}, {"15:00", true},
+    {"15:30", true}, {"16:00", true}, {"16:30", true}, {"17:00", true}, {"17:30", true},
+    {"18:00", true}, {"18:30", true}, {"19:00", true}, {"19:30", true}, {"20:00", true}
+};
+
+Reserva reservas[100];
+int reserva_count = 0;
+int consulta_id_counter = 1;
+
+void mostrar_horarios(int client_socket) {
+    char buffer[1024];
+    strcpy(buffer, "Horario de la categoria:\nHoras disponibles:\n");
+    write(client_socket, buffer, strlen(buffer));
+    
+    for (int i = 0; i < sizeof(horarios) / sizeof(horarios[0]); i++) {
+        if (horarios[i].disponible) {
+            sprintf(buffer, "%d. %s\n", i + 1, horarios[i].hora);
+            write(client_socket, buffer, strlen(buffer));
+        }
+    }
+}
+
+void agregar_reserva(Reserva r, int hora_index) {
+    r.consulta_id = consulta_id_counter++;
+    reservas[reserva_count++] = r;
+    horarios[hora_index].disponible = false;
+}
+
+Reserva* consultar_reserva(int consulta_id) {
+    for (int i = 0; i < reserva_count; i++) {
+        if (reservas[i].consulta_id == consulta_id) {
+            return &reservas[i];
+        }
+    }
+    return NULL;
+}
+
+void cancelar_reserva(int consulta_id) {
+    for (int i = 0; i < reserva_count; i++) {
+        if (reservas[i].consulta_id == consulta_id) {
+            for (int j = 0; j < sizeof(horarios) / sizeof(horarios[0]); j++) {
+                if (strcmp(horarios[j].hora, reservas[i].hora) == 0) {
+                    horarios[j].disponible = true;
+                    break;
+                }
+            }
+            reservas[i] = reservas[--reserva_count];
+            return;
+        }
+    }
+}
+
+void mostrar_horarios_disponibles(int client_socket, int dia, int mes) {
+    char buffer[1024];
+    sprintf(buffer, "Horas disponibles para el dia %d/%d:\n", dia, mes);
+    write(client_socket, buffer, strlen(buffer));
+    
+    for (int i = 0; i < sizeof(horarios) / sizeof(horarios[0]); i++) {
+        if (horarios[i].disponible) {
+            sprintf(buffer, "%d. %s\n", i + 1, horarios[i].hora);
+            write(client_socket, buffer, strlen(buffer));
+        }
+    }
+}
+
 void manejar_cliente(int client_socket) {
     char buffer[1024];
     int opcion, consulta_id, hora_index;
@@ -5,7 +93,7 @@ void manejar_cliente(int client_socket) {
 
     while (1) {
         bzero(buffer, 1024);
-        read(client_socket, &opcion, sizeof(opcion));  // Cambiado para recibir entero directamente
+        read(client_socket, &opcion, sizeof(opcion));
 
         switch (opcion) {
             case 1: // Reservar hora
