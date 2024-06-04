@@ -36,38 +36,43 @@ void manejar_reserva(int client_socket) {
     char buffer[1024];
     int hora_index;
 
+    // Solicitar y mostrar horarios disponibles
     read(client_socket, buffer, sizeof(buffer));
     printf("%s", buffer);
 
+    // Recibir y mostrar todas las líneas de horarios
     while (read(client_socket, buffer, sizeof(buffer)) > 0) {
         printf("%s", buffer);
         if (strchr(buffer, '\n') != NULL) break;
         bzero(buffer, sizeof(buffer));
     }
 
+    // Enviar la selección de hora
     scanf("%d", &hora_index);
     sprintf(buffer, "%d", hora_index);
     write(client_socket, buffer, strlen(buffer));
-    write(client_socket, "\n", 1);
+    write(client_socket, "\n", 1);  // Enviar nueva línea
 
+    // Enviar datos de la reserva
     printf("Ingrese nombre: ");
     bzero(buffer, sizeof(buffer));
     scanf(" %[^\n]s", buffer);
     write(client_socket, buffer, strlen(buffer));
-    write(client_socket, "\n", 1);
+    write(client_socket, "\n", 1);  // Enviar nueva línea
 
     printf("Ingrese fecha (dd-mm-aaaa): ");
     bzero(buffer, sizeof(buffer));
     scanf(" %[^\n]s", buffer);
     write(client_socket, buffer, strlen(buffer));
-    write(client_socket, "\n", 1);
+    write(client_socket, "\n", 1);  // Enviar nueva línea
 
     printf("Ingrese categoria: ");
     bzero(buffer, sizeof(buffer));
     scanf(" %[^\n]s", buffer);
     write(client_socket, buffer, strlen(buffer));
-    write(client_socket, "\n", 1);
+    write(client_socket, "\n", 1);  // Enviar nueva línea
 
+    // Leer la confirmación de la reserva
     bzero(buffer, sizeof(buffer));
     read(client_socket, buffer, sizeof(buffer));
     printf("%s", buffer);
@@ -80,7 +85,7 @@ void manejar_consulta(int client_socket) {
     bzero(buffer, sizeof(buffer));
     scanf(" %[^\n]s", buffer);
     write(client_socket, buffer, strlen(buffer));
-    write(client_socket, "\n", 1);
+    write(client_socket, "\n", 1);  // Enviar nueva línea
 
     bzero(buffer, sizeof(buffer));
     read(client_socket, buffer, sizeof(buffer));
@@ -94,7 +99,7 @@ void manejar_cancelacion(int client_socket) {
     bzero(buffer, sizeof(buffer));
     scanf(" %[^\n]s", buffer);
     write(client_socket, buffer, strlen(buffer));
-    write(client_socket, "\n", 1);
+    write(client_socket, "\n", 1);  // Enviar nueva línea
 
     bzero(buffer, sizeof(buffer));
     read(client_socket, buffer, sizeof(buffer));
@@ -109,13 +114,13 @@ void consultar_horario(int client_socket) {
     scanf("%d", &mes);
     sprintf(buffer, "%d", mes);
     write(client_socket, buffer, strlen(buffer));
-    write(client_socket, "\n", 1);
+    write(client_socket, "\n", 1);  // Enviar nueva línea
 
     printf("Ingrese día: ");
     scanf("%d", &dia);
     sprintf(buffer, "%d", dia);
     write(client_socket, buffer, strlen(buffer));
-    write(client_socket, "\n", 1);
+    write(client_socket, "\n", 1);  // Enviar nueva línea
 
     bzero(buffer, sizeof(buffer));
     read(client_socket, buffer, sizeof(buffer));
@@ -166,7 +171,7 @@ int main() {
         scanf("%d", &opcion);
         sprintf(buffer, "%d", opcion);
         write(client_socket, buffer, strlen(buffer));
-        write(client_socket, "\n", 1);
+        write(client_socket, "\n", 1);  // Enviar nueva línea
 
         switch (opcion) {
             case 1:

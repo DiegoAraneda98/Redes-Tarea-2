@@ -106,6 +106,7 @@ void manejar_cliente(int client_socket) {
                 read(client_socket, buffer, sizeof(buffer));
                 hora_index = atoi(buffer) - 1;
 
+                // Leer datos de la reserva
                 write(client_socket, "Ingrese nombre: ", strlen("Ingrese nombre: "));
                 bzero(buffer, sizeof(buffer));
                 read(client_socket, buffer, sizeof(buffer));
