@@ -110,17 +110,20 @@ void manejar_cliente(int client_socket) {
                 write(client_socket, "Ingrese nombre: ", strlen("Ingrese nombre: "));
                 bzero(buffer, sizeof(buffer));
                 read(client_socket, buffer, sizeof(buffer));
+                buffer[strcspn(buffer, "\n")] = 0;  // Eliminar nueva línea
                 strcpy(nueva_reserva.nombre, buffer);
 
                 write(client_socket, "Ingrese fecha (dd-mm-aaaa): ", strlen("Ingrese fecha (dd-mm-aaaa): "));
                 bzero(buffer, sizeof(buffer));
                 read(client_socket, buffer, sizeof(buffer));
+                buffer[strcspn(buffer, "\n")] = 0;  // Eliminar nueva línea
                 strcpy(nueva_reserva.fecha, buffer);
 
                 strcpy(nueva_reserva.hora, horarios[hora_index].hora);
                 write(client_socket, "Ingrese categoria: ", strlen("Ingrese categoria: "));
                 bzero(buffer, sizeof(buffer));
                 read(client_socket, buffer, sizeof(buffer));
+                buffer[strcspn(buffer, "\n")] = 0;  // Eliminar nueva línea
                 strcpy(nueva_reserva.categoria, buffer);
 
                 agregar_reserva(nueva_reserva, hora_index);

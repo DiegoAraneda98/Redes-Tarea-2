@@ -37,6 +37,7 @@ void manejar_reserva(int client_socket) {
     int hora_index;
 
     // Solicitar y mostrar horarios disponibles
+    bzero(buffer, sizeof(buffer));
     read(client_socket, buffer, sizeof(buffer));
     printf("%s", buffer);
 
