@@ -22,9 +22,10 @@ void mostrar_menu_principal() {
     printf("4. Salir.\n");
 }
 
-void mostrar_submenu(char *categoria) {
+void mostrar_submenu(const char* categoria) {
     clear_screen();
-    printf("Seleccione una opción para %s:\n", categoria);
+    printf("Área de consulta: %s\n", categoria);
+    printf("Seleccione una opción:\n");
     printf("1. Reservar hora.\n");
     printf("2. Consultar reserva.\n");
     printf("3. Cancelar hora.\n");

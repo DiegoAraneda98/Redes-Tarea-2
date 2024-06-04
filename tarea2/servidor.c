@@ -93,7 +93,8 @@ void manejar_cliente(int client_socket) {
 
     while (1) {
         bzero(buffer, 1024);
-        read(client_socket, &opcion, sizeof(opcion));
+        read(client_socket, buffer, sizeof(buffer));
+        opcion = atoi(buffer);  // Convertir opción a entero
 
         switch (opcion) {
             case 1: // Reservar hora
