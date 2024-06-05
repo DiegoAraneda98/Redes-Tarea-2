@@ -1,5 +1,4 @@
-/* CLIENTE - Sistema de Reservas de Horas Médicas */
-/**************************************************/
+/* CLIENTE - Reserva y consulta de citas médicas con RUT y especialidades */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -9,20 +8,21 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#include <netdb.h>
 
-#define MAX_TAM_MENSAJE 100 // Aumentamos el tamaño del mensaje para manejar las solicitudes del cliente
+#define MAX_TAM_MENSAJE 200
 
-/**********************************************************/
-/* Función MAIN                                           */
-/**********************************************************/
+char mensaje[MAX_TAM_MENSAJE];
+
+void catch(int sig) {
+    strcpy(mensaje, "terminar();");
+}
+
 int main(int argc, char *argv[]) {
     int descriptor_socket_origen;
     struct sockaddr_in socket_origen, socket_destino;
     socklen_t destino_tam;
-    char mensaje[MAX_TAM_MENSAJE];
     char respuesta[MAX_TAM_MENSAJE];
-    int recibidos, enviados; // bytes recibidos y enviados
+    int recibidos, enviados;
 
     if (argc != 3) {
         printf("\n\nEl número de parámetros es incorrecto\n");
@@ -30,90 +30,137 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
-    // Crear el socket del cliente
     descriptor_socket_origen = socket(AF_INET, SOCK_DGRAM, 0);
     if (descriptor_socket_origen == -1) {
         printf("ERROR: El socket del cliente no se ha creado correctamente!\n");
         exit(EXIT_FAILURE);
     }
 
-    // Configurar la dirección de la máquina cliente
     socket_origen.sin_family = AF_INET;
-    socket_origen.sin_port = htons(0);                                 // Asigna un puerto disponible de la máquina
-    socket_origen.sin_addr.s_addr = htonl(INADDR_ANY);    // Asigna una IP de la máquina
+    socket_origen.sin_port = htons(0);
+    socket_origen.sin_addr.s_addr = htonl(INADDR_ANY);
 
-    // Asignar una dirección local al socket
     if (bind(descriptor_socket_origen, (struct sockaddr*)&socket_origen, sizeof(socket_origen)) == -1) {
         printf("ERROR al unir el socket a la dirección de la máquina cliente\n");
         close(descriptor_socket_origen);
         exit(EXIT_FAILURE);
     }
 
-    // Configurar la dirección de la máquina servidora
     socket_destino.sin_family = AF_INET;
     socket_destino.sin_addr.s_addr = inet_addr(argv[1]);
     socket_destino.sin_port = htons(atoi(argv[2]));
 
-    do {
-        // Solicitar al cliente que ingrese la solicitud
-        printf("\nElija una especialidad:\n");
-        printf("1. Especialidad 1\n");
-        printf("2. Especialidad 2\n");
-        printf("3. Especialidad 3\n");
-        printf("4. Especialidad 4\n");
-        printf("Ingrese el número correspondiente a la especialidad: ");
-        int especialidad;
-        scanf("%d", &especialidad);
+    signal(SIGINT, catch);
 
-        // Validar la selección de especialidad
-        if (especialidad < 1 || especialidad > 4) {
-            printf("Especialidad inválida. Por favor, elija un número entre 1 y 4.\n");
+    while (1) {
+        int opcion;
+        printf("Elija una acción:\n1. Reservar una cita\n2. Ver mis citas\n3. Ver horas disponibles\nOpción: ");
+        scanf("%d", &opcion);
+
+        if (opcion == 1) {
+            int especialidad_opcion;
+            char nombre[50], rut[12], fecha[11], hora[6], especialidad[20];
+
+            printf("Elija una especialidad:\n1. Cardiología\n2. Pediatría\n3. Dermatología\n4. Ginecología\nOpción: ");
+            scanf("%d", &especialidad_opcion);
+
+            switch (especialidad_opcion) {
+                case 1:
+                    strcpy(especialidad, "Cardiología");
+                    break;
+                case 2:
+                    strcpy(especialidad, "Pediatría");
+                    break;
+                case 3:
+                    strcpy(especialidad, "Dermatología");
+                    break;
+                case 4:
+                    strcpy(especialidad, "Ginecología");
+                    break;
+                default:
+                    printf("Especialidad no válida.\n");
+                    continue;
+            }
+
+            printf("Ingrese su nombre: ");
+            scanf("%s", nombre);
+            printf("Ingrese su RUT (xxxxxxxx-x): ");
+            scanf("%s", rut);
+            printf("Ingrese la fecha de la cita (YYYY-MM-DD): ");
+            scanf("%s", fecha);
+            printf("Ingrese la hora de la cita (HH:MM): ");
+            scanf("%s", hora);
+
+            snprintf(mensaje, sizeof(mensaje), "RESERVAR %s %s %s %s %s", especialidad, nombre, rut, fecha, hora);
+
+        } else if (opcion == 2) {
+            char rut[12];
+
+            printf("Ingrese su RUT (xxxxxxxx-x): ");
+            scanf("%s", rut);
+
+            snprintf(mensaje, sizeof(mensaje), "CONSULTAR %s", rut);
+
+        } else if (opcion == 3) {
+            int especialidad_opcion;
+            char especialidad[20], fecha[11];
+
+            printf("Elija una especialidad:\n1. Cardiología\n2. Pediatría\n3. Dermatología\n4. Ginecología\nOpción: ");
+            scanf("%d", &especialidad_opcion);
+
+            switch (especialidad_opcion) {
+                case 1:
+                    strcpy(especialidad, "Cardiología");
+                    break;
+                case 2:
+                    strcpy(especialidad, "Pediatría");
+                    break;
+                case 3:
+                    strcpy(especialidad, "Dermatología");
+                    break;
+                case 4:
+                    strcpy(especialidad, "Ginecología");
+                    break;
+                default:
+                    printf("Especialidad no válida.\n");
+                    continue;
+            }
+
+            printf("Ingrese la fecha (YYYY-MM-DD): ");
+            scanf("%s", fecha);
+
+            snprintf(mensaje, sizeof(mensaje), "HORAS_DISPONIBLES %s %s", especialidad, fecha);
+
+        } else {
+            printf("Opción no válida.\n");
             continue;
         }
 
-        // Solicitar al cliente que ingrese una fecha válida
-        char fecha[11];
-        printf("Ingrese la fecha en formato dd/mm/yyyy: ");
-        scanf("%s", fecha);
-
-        // Solicitar al cliente que ingrese su nombre
-        char nombre[50];
-        printf("Ingrese su nombre: ");
-        scanf("%s", nombre);
-
-        // Solicitar al cliente que ingrese la hora en formato hh:mm
-        char hora[6];
-        printf("Ingrese la hora en formato hh:mm: ");
-        scanf("%s", hora);
-
-        // Construir el mensaje para enviar al servidor
-        sprintf(mensaje, "%d,%s,%s,%s,%s", especialidad, fecha, hora, nombre);
-
-        // Enviar la solicitud al servidor
         enviados = sendto(descriptor_socket_origen, mensaje, strlen(mensaje), 0, (struct sockaddr*)&socket_destino, sizeof(socket_destino));
         if (enviados < 0) {
-            printf("ERROR en sendto() \n");
+            printf("ERROR en sendto()\n");
             close(descriptor_socket_origen);
             exit(EXIT_FAILURE);
-        } else {
-            printf("Solicitud enviada al servidor.\n");
         }
 
-        // Recibir la respuesta del servidor
         destino_tam = sizeof(socket_destino);
-        recibidos = recvfrom(descriptor_socket_origen, respuesta, sizeof(respuesta), 0, (struct sockaddr*)&socket_destino, &destino_tam);
+        recibidos = recvfrom(descriptor_socket_origen, respuesta, sizeof(respuesta) - 1, 0, (struct sockaddr*)&socket_destino, &destino_tam);
         if (recibidos < 0) {
-            printf("ERROR en recvfrom() \n");
+            printf("ERROR en recvfrom()\n");
             close(descriptor_socket_origen);
             exit(EXIT_FAILURE);
-        } else {
-            printf("Respuesta del servidor: %s\n", respuesta);
         }
 
-    } while (1);
+        respuesta[recibidos] = '\0';
+        printf("Respuesta del servidor:\n%s\n", respuesta);
 
-    // Cerrar el socket del cliente
-    printf("\nCliente termina.\n");
+        if (strcmp(mensaje, "terminar();") == 0) {
+            printf("***Cliente terminó conexión con servidor.\n");
+            close(descriptor_socket_origen);
+            exit(EXIT_SUCCESS);
+        }
+    }
+
     close(descriptor_socket_origen);
-    exit(EXIT_SUCCESS);
+    return 0;
 }
