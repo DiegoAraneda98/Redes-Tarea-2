@@ -1,4 +1,3 @@
-/* SERVIDOR - Reserva y consulta de citas médicas con RUT y especialidades */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -123,6 +122,14 @@ void consultar_horas_disponibles(char *mensaje, char *respuesta) {
     strcpy(respuesta, horas);
 }
 
+void mostrar_citas() {
+    printf("Citas médicas reservadas:\n");
+    for (int i = 0; i < total_citas; i++) {
+        printf("Especialidad: %s, Nombre: %s, RUT: %s, Fecha: %s, Hora: %s\n",
+               calendario[i].especialidad, calendario[i].nombre_paciente,
+               calendario[i].rut, calendario[i].fecha, calendario[i].hora);
+    }
+}
 
 int main(int argc, char *argv[]) {
     socklen_t destino_tam;
@@ -172,6 +179,9 @@ int main(int argc, char *argv[]) {
             consultar_citas(mensaje_entrada, mensaje_salida);
         } else if (strncmp(mensaje_entrada, "HORAS_DISPONIBLES", 17) == 0) {
             consultar_horas_disponibles(mensaje_entrada, mensaje_salida);
+        } else if (strcmp(mensaje_entrada, "mostrar_citas();") == 0) {
+            mostrar_citas();
+            strcpy(mensaje_salida, "Citas mostradas en el servidor.");
         } else if (strcmp(mensaje_entrada, "terminar();") == 0) {
             strcpy(mensaje_salida, "Conexión terminada por el cliente.");
         } else {
