@@ -8,7 +8,6 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#include <regex.h>  // Biblioteca para trabajar con expresiones regulares
 
 #define MAX_TAM_MENSAJE 200
 #define MAX_CITAS 100
@@ -34,42 +33,9 @@ void catch(int sig) {
     exit(EXIT_SUCCESS);
 }
 
-void validar_rut(char *rut, char *respuesta, struct sockaddr_in socket_cliente, socklen_t destino_tam) {
-    regex_t regex;
-    int reti;
-
-    // Compilar la expresión regular para el formato del RUT
-    reti = regcomp(&regex, "[0-9]{7,8}-[0-9Kk]", REG_EXTENDED);
-    if (reti) {
-        printf("ERROR: No se pudo compilar la expresión regular para el RUT\n");
-        exit(EXIT_FAILURE);
-    }
-
-    while (1) {
-        // Validar el RUT ingresado
-        reti = regexec(&regex, rut, 0, NULL, 0);
-        if (!reti) {
-            // Si el RUT es válido, romper el bucle
-            regfree(&regex);
-            break;
-        } else {
-            // Si el RUT es inválido, pedir nuevamente el RUT
-            sprintf(respuesta, "ERROR: Formato de RUT inválido. El RUT debe tener el formato xxxxxxxx-x. Ingrese nuevamente el RUT:");
-            sendto(descriptor_socket_servidor, respuesta, strlen(respuesta), 0, (struct sockaddr*)&socket_cliente, destino_tam);
-
-            // Recibir nuevo RUT del cliente
-            int recibidos = recvfrom(descriptor_socket_servidor, rut, 12, 0, (struct sockaddr*)&socket_cliente, &destino_tam);
-            rut[recibidos] = '\0';
-        }
-    }
-}
-
 void reservar_cita(char *mensaje, char *respuesta, struct sockaddr_in socket_cliente, socklen_t destino_tam) {
     char especialidad[50], nombre[50], rut[12], fecha[11], hora[6];
     sscanf(mensaje, "RESERVAR %s %s %s %s %s", especialidad, nombre, rut, fecha, hora);
-
-    // Validar el formato del RUT
-    validar_rut(rut, respuesta, socket_cliente, destino_tam);
 
     for (int i = 0; i < total_citas; i++) {
         if (strcmp(calendario[i].especialidad, especialidad) == 0 &&
@@ -180,7 +146,9 @@ void consultar_horas_disponibles(char *mensaje, char *respuesta) {
     }
 
     // Eliminar el último guión y espacio
-    formato_horas[strlen(formato_horas) - 3] = '\0';
+    if (strlen(formato_horas) > 3) {
+        formato_horas[strlen(formato_horas) - 3] = '\0';
+    }
 
     // Copiar las horas disponibles al mensaje de respuesta
     strcat(horas, formato_horas);
